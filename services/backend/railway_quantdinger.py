@@ -361,7 +361,16 @@ def run_with_retries(cmd: list[str], env: dict, label: str, sleep=time.sleep) ->
     return 1
 
 
+def prepare_metrics_dir(env: dict) -> None:
+    # The image's entrypoint creates this directory; pre-deploy commands run without
+    # it, and prometheus_client's multiprocess mode fails every DB pool without it.
+    metrics_dir = str(env.get("PROMETHEUS_MULTIPROC_DIR") or "").strip()
+    if metrics_dir:
+        os.makedirs(metrics_dir, exist_ok=True)
+
+
 def predeploy(mode: str, env: dict) -> int:
+    prepare_metrics_dir(env)
     if mode == "migrate":
         env.update({"SKIP_AUTO_MIGRATE": "false", "DB_POOL_MIN": "1", "DB_POOL_MAX": "2",
                     "DB_APPLICATION_NAME": "quantdinger-migration"})
