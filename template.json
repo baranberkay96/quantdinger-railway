@@ -1,0 +1,4053 @@
+{
+  "name": "QuantDinger v5 AI Trading Research and Backtesting",
+  "description": "AI quant research, Python strategies, backtesting and paper trading",
+  "category": "AI/ML",
+  "tags": [
+    "quantdinger",
+    "quant",
+    "trading",
+    "backtesting",
+    "algorithmic-trading",
+    "ai-agents",
+    "mcp",
+    "kafka",
+    "celery"
+  ],
+  "image": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/chart-candlestick.svg",
+  "upstream": {
+    "repo": "OpenByteInc/QuantDinger",
+    "version": "v5.8.4 (commit be718de0034acea548033aa1627529ac62ed0dda, released 2026-11-06)",
+    "images": {
+      "backend": "ghcr.io/openbyteinc/quantdinger-backend:v5.8.4@sha256:3878e94a1344a979e98b689369ed3fafe51ed065c3d51b11782b7f3dd52d4e26 (amd64 sha256:8806b6c885501c752ff47dc0da84c8cbf510712ad7cb3b6853ca2648e62bbb28, built 2026-11-06, Apache-2.0)",
+      "frontend": "ghcr.io/openbyteinc/quantdinger-frontend:5.8.4@sha256:fc993eb1eef5152097e95db8969691692b7c02272055fc801e2c603761c09b8d (amd64 sha256:70d3fa4d88cd194b5af151f9596f603e2ad20c7661cd620e29de5ce594d0e394, QuantDinger-Vue 97ec7557, built 2026-11-04, QuantDinger Frontend Source-Available License)",
+      "mcp": "built from mcp_server/ at be718de0 (Apache-2.0) on python:3.12-slim-bookworm@sha256:6a0e06f5ba0b373d051aabd3fffb9b873f27f9a2a3a14bcbe37dee6f0e3bbc70",
+      "kafka": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837",
+      "postgres": "ghcr.io/railwayapp-templates/postgres-ssl:18 (index sha256:4fc833b43d2aaf6ecc9b18615f5533602b723a32d0e2efe2dae8ca0f7217c863 on 2026-11-07)",
+      "redis": "redis:8.2 (index sha256:b0b01167ff47bc3868e56a967895a26be4230891a1f42a78ab61cdd227accc8d on 2026-11-07)"
+    },
+    "checked": "2026-11-07"
+  },
+  "services": {
+    "Web": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/chart-candlestick.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/web"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": "/health",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": true,
+      "targetPort": 80,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_FRONTEND_IMAGE": {
+          "defaultValue": "ghcr.io/openbyteinc/quantdinger-frontend:5.8.4@sha256:fc993eb1eef5152097e95db8969691692b7c02272055fc801e2c603761c09b8d",
+          "description": "Web UI image (build argument), pinned to QuantDinger 5.8.4 by digest. Keep it on the same release as QUANTDINGER_BACKEND_IMAGE on Backend.",
+          "required": false
+        },
+        "PORT": {
+          "defaultValue": "80",
+          "description": "Port nginx listens on (public domain target and healthcheck).",
+          "required": false
+        },
+        "BACKEND_URL": {
+          "defaultValue": "http://${{Backend.RAILWAY_PRIVATE_DOMAIN}}:5000",
+          "description": "Backend API on the private network; nginx proxies /api/ to it and re-resolves the name every 10 s.",
+          "required": false
+        },
+        "NGINX_RESOLVER": {
+          "defaultValue": "",
+          "description": "Optional DNS server for nginx. Empty = the container's resolver from /etc/resolv.conf (Railway private DNS).",
+          "required": false
+        },
+        "NGINX_TRUST_FORWARDED_FOR": {
+          "defaultValue": "true",
+          "description": "Take the visitor IP from X-Forwarded-For sent by Railway's proxy (private addresses only), so login rate limits see real client IPs.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "10",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy.",
+          "required": false
+        }
+      }
+    },
+    "Backend": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/server.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger api",
+      "preDeployCommand": "/usr/local/bin/railway-quantdinger migrate",
+      "preDeployTimeoutSeconds": 1200,
+      "healthcheckPath": "/api/health/ready",
+      "healthcheckTimeout": 600,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": {
+        "mountPath": "/app/data"
+      },
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "ghcr.io/openbyteinc/quantdinger-backend:v5.8.4@sha256:3878e94a1344a979e98b689369ed3fafe51ed065c3d51b11782b7f3dd52d4e26",
+          "description": "Backend image every backend-image service is built from (build argument). Pinned to QuantDinger v5.8.4 by digest; change it here to upgrade, then redeploy Backend and all workers.",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "UTC",
+          "description": "Time zone of all backend processes and Celery schedules (upstream's compose default is Asia/Shanghai).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "json",
+          "description": "Log format (json or text).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "INFO",
+          "description": "Log level (DEBUG, INFO, WARNING, ERROR).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{secret(64, \"abcdef0123456789\")}}",
+          "description": "JWT/session signing key, generated at deploy and shared by every backend process. Changing it signs everyone out.",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{secret(64, \"abcdef0123456789\")}}",
+          "description": "Encrypts saved exchange/broker credentials and MFA secrets, generated at deploy. Never change it after saving credentials (they become unreadable).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "admin",
+          "description": "Username of the first administrator, created on the first start (3-50 letters, digits or underscores).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{secret(24, \"abcdefghijkmnopqrstuvwxyzABCDEFGHJKLMNPQRSTUVWXYZ23456789\")}}",
+          "description": "Password of the first administrator, generated at deploy. Used once to create the account; change your password in the app afterwards.",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "",
+          "description": "Optional email of the first administrator (password recovery, notifications).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "false",
+          "description": "Public sign-up. Off: only the administrator can create users. Sign-up also needs SMTP for verification codes.",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "false",
+          "description": "Allows strategies in live execution mode (real orders). Off by default; paper/signal mode only. Manual Quick Trade orders are NOT covered by this switch.",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "false",
+          "description": "Allows live orders from Agent Tokens (MCP and the agent API). Off by default (paper orders only).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "true",
+          "description": "Shows exchange/broker account settings in the UI (upstream default). Nothing trades until you save exchange API keys yourself.",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "true",
+          "description": "Agent Gateway /api/agent/v1 (needed by the MCP Server).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "false",
+          "description": "Credits/membership billing module (upstream default off).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "false",
+          "description": "Strategy marketplace module (upstream default off).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "false",
+          "description": "USDT on-chain payment module (upstream default off).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "false",
+          "description": "USDC on-chain payment module (upstream default off).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "false",
+          "description": "Stripe payment module (upstream default off).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "false",
+          "description": "Referral rewards (upstream default off).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "self_hosted",
+          "description": "Deployment mode (self_hosted, or saas for a multi-tenant service).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "false",
+          "description": "Interactive API docs at /api/docs (off in production upstream).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "false",
+          "description": "Flask debug mode (never enable on a public instance).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "true",
+          "description": "Processes do not migrate on start; Backend's pre-deploy command runs the migration.",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "postgresql",
+          "description": "Database type.",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "0",
+          "description": "Redis database of the cache.",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "quantdinger:cache:v1",
+          "description": "Key prefix of the cache.",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "true",
+          "description": "Use the Redis cache.",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "true",
+          "description": "Run AI jobs, backtests and maintenance through Celery (Redis Jobs).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "0",
+          "description": "Redis Jobs database of the Celery broker.",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "1",
+          "description": "Redis Jobs database of the Celery results.",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "true",
+          "description": "Publish bar-close, strategy and order events to Kafka.",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "1",
+          "description": "Topic replication factor (single Kafka node).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "6",
+          "description": "Partitions of the market-bar topic (set before the first deploy; not changed later).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "12",
+          "description": "Partitions of the strategy topics.",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "12",
+          "description": "Partitions of the order topics.",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "3",
+          "description": "Partitions of the dead-letter topic.",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "true",
+          "description": "Sync the market symbol catalog automatically.",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "86400",
+          "description": "Market catalog sync interval in seconds.",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "openrouter",
+          "description": "AI provider: openrouter, openai, google, deepseek, grok, minimax, atlascloud or custom (any OpenAI-compatible API). Optional: the app runs without AI keys.",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. OpenRouter API key (LLM_PROVIDER=openrouter).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "openai/gpt-5.4",
+          "description": "OpenRouter model id (upstream default).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. OpenAI API key (LLM_PROVIDER=openai).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "gpt-5.4",
+          "description": "OpenAI model (upstream default).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "https://api.openai.com/v1",
+          "description": "OpenAI API base URL.",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. DeepSeek API key (LLM_PROVIDER=deepseek).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. Google Gemini API key (LLM_PROVIDER=google).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. xAI Grok API key (LLM_PROVIDER=grok).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. MiniMax API key (LLM_PROVIDER=minimax).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "",
+          "description": "Optional. Base URL of any OpenAI-compatible API, ending in /v1 (LLM_PROVIDER=custom).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. API key for CUSTOM_API_URL.",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "",
+          "description": "Optional. Model name for CUSTOM_API_URL.",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "",
+          "description": "Optional. Tavily key(s) for AI web/news search (comma-separated).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. Finnhub key (US stock quotes, profiles, news).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "",
+          "description": "Optional. Twelve Data key (CN/HK stock candles from overseas servers).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "900",
+          "description": "Template wrapper: how long workers wait for Backend's migration before starting anyway.",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "4",
+          "description": "Template wrapper: upper limit for native thread pools (numpy/BLAS), also capped by the service's CPU quota.",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "api",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "true",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "2",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "12",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-api",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "PORT": {
+          "defaultValue": "5000",
+          "description": "Port Railway health-checks (gunicorn listens on [::]:5000). Never add a public domain: Web proxies /api.",
+          "required": false
+        },
+        "PYTHON_API_HOST": {
+          "defaultValue": "[::]",
+          "description": "Bind address of gunicorn (dual-stack IPv4/IPv6 for the private network).",
+          "required": false
+        },
+        "PYTHON_API_PORT": {
+          "defaultValue": "5000",
+          "description": "Port of the API (Web proxies to it).",
+          "required": false
+        },
+        "QUANTDINGER_ENV_FILE": {
+          "defaultValue": "/app/data/.env",
+          "description": "Settings file on the Backend volume (the Settings page writes here). Railway variables are written into it at every start.",
+          "required": false
+        },
+        "INDICATOR_PREVIEW_DIR": {
+          "defaultValue": "/app/data/indicator_previews",
+          "description": "Indicator preview images (on the volume).",
+          "required": false
+        },
+        "PROMETHEUS_MULTIPROC_DIR": {
+          "defaultValue": "/tmp/quantdinger-prometheus",
+          "description": "Prometheus multiprocess metrics directory (cleared on start).",
+          "required": false
+        },
+        "GUNICORN_WORKERS": {
+          "defaultValue": "2",
+          "description": "Gunicorn worker processes.",
+          "required": false
+        },
+        "GUNICORN_THREADS": {
+          "defaultValue": "4",
+          "description": "Threads per gunicorn worker.",
+          "required": false
+        },
+        "GUNICORN_MAX_REQUESTS": {
+          "defaultValue": "800",
+          "description": "Requests before a gunicorn worker is recycled.",
+          "required": false
+        },
+        "GUNICORN_MAX_REQUESTS_JITTER": {
+          "defaultValue": "100",
+          "description": "Random jitter for the recycling above.",
+          "required": false
+        },
+        "DB_POOL_ACQUIRE_TIMEOUT": {
+          "defaultValue": "10",
+          "description": "Seconds to wait for a free database connection.",
+          "required": false
+        },
+        "MARKET_EXECUTOR_WORKERS": {
+          "defaultValue": "6",
+          "description": "Parallel market-data fetches per request.",
+          "required": false
+        },
+        "PORTFOLIO_EXECUTOR_WORKERS": {
+          "defaultValue": "3",
+          "description": "Parallel portfolio fetches per request.",
+          "required": false
+        },
+        "RESOURCE_FD_COOLDOWN_SEC": {
+          "defaultValue": "180",
+          "description": "Cooldown after file-descriptor pressure.",
+          "required": false
+        },
+        "PORTFOLIO_MONITOR_DUE_BATCH_LIMIT": {
+          "defaultValue": "5",
+          "description": "Portfolio monitor batch size.",
+          "required": false
+        },
+        "BACKTEST_KLINE_CACHE_MAX_BYTES": {
+          "defaultValue": "134217728",
+          "description": "Per-process candle cache (128 MiB).",
+          "required": false
+        },
+        "STRATEGY_SHARED_FRAME_CACHE_MAX_BYTES": {
+          "defaultValue": "268435456",
+          "description": "Per-process strategy frame cache (256 MiB).",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      }
+    },
+    "Trading Worker": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/activity.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger trading",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "trading",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "4",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "32",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-trading",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "KAFKA_CLIENT_ID": {
+          "defaultValue": "quantdinger-trading",
+          "description": "Kafka client id.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      }
+    },
+    "Strategy Dispatcher": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/split.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger strategy-dispatcher",
+      "preDeployCommand": "/usr/local/bin/railway-quantdinger kafka-topics",
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "strategy-dispatcher",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "1",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "4",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-strategy-dispatcher",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "KAFKA_CLIENT_ID": {
+          "defaultValue": "quantdinger-strategy-dispatcher",
+          "description": "Kafka client id.",
+          "required": false
+        },
+        "KAFKA_STRATEGY_DISPATCH_GROUP_ID": {
+          "defaultValue": "quantdinger-strategy-dispatch-v1",
+          "description": "Kafka consumer group.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      },
+      "preDeployTimeoutSeconds": 1200
+    },
+    "Strategy Evaluator": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/cpu.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger strategy-evaluator",
+      "preDeployCommand": "/usr/local/bin/railway-quantdinger kafka-topics",
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "strategy-evaluator",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "2",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "16",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-strategy-evaluator",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "KAFKA_CLIENT_ID": {
+          "defaultValue": "quantdinger-strategy-evaluator",
+          "description": "Kafka client id.",
+          "required": false
+        },
+        "KAFKA_STRATEGY_EVALUATOR_GROUP_ID": {
+          "defaultValue": "quantdinger-strategy-evaluator-active-v1",
+          "description": "Kafka consumer group.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      },
+      "preDeployTimeoutSeconds": 1200
+    },
+    "Kafka Audit Worker": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/shield-check.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger kafka-audit",
+      "preDeployCommand": "/usr/local/bin/railway-quantdinger kafka-topics",
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "kafka-audit",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "1",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "3",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-kafka-audit",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "KAFKA_AUDIT_GROUP_ID": {
+          "defaultValue": "quantdinger-runtime-audit-v1",
+          "description": "Kafka consumer group.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      },
+      "preDeployTimeoutSeconds": 1200
+    },
+    "Scheduler": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/calendar-clock.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger scheduler",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "scheduler",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "2",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "12",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-scheduler",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      }
+    },
+    "Celery Worker": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/list-checks.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger celery",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "celery",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "2",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "12",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-celery-worker",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "CELERY_CONCURRENCY": {
+          "defaultValue": "2",
+          "description": "Celery processes for the ai and maintenance queues.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "60",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (lets running tasks finish).",
+          "required": false
+        }
+      }
+    },
+    "Celery Backtest Worker": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/flask-conical.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger celery-backtest",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "celery",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "2",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "12",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-celery-backtest-worker",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "CELERY_BACKTEST_CONCURRENCY": {
+          "defaultValue": "1",
+          "description": "Parallel backtests (each needs up to CELERY_BACKTEST_MAX_MEMORY_KB).",
+          "required": false
+        },
+        "CELERY_BACKTEST_MAX_MEMORY_KB": {
+          "defaultValue": "1572864",
+          "description": "Memory limit per backtest process in KiB (1.5 GiB); the process is replaced after each task.",
+          "required": false
+        },
+        "CELERY_MAX_TASKS_PER_CHILD": {
+          "defaultValue": "1",
+          "description": "Recycle the backtest process after every task (upstream setting).",
+          "required": false
+        },
+        "CELERY_MAX_MEMORY_PER_CHILD_KB": {
+          "defaultValue": "1572864",
+          "description": "Same limit for the Celery app configuration.",
+          "required": false
+        },
+        "BACKTEST_KLINE_CACHE_MAX_BYTES": {
+          "defaultValue": "134217728",
+          "description": "Per-process candle cache (128 MiB).",
+          "required": false
+        },
+        "STRATEGY_SHARED_FRAME_CACHE_MAX_BYTES": {
+          "defaultValue": "268435456",
+          "description": "Per-process strategy frame cache (256 MiB).",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "60",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (lets running tasks finish).",
+          "required": false
+        }
+      }
+    },
+    "Celery Beat": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/timer.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/backend"
+      },
+      "startCommand": "/usr/local/bin/railway-quantdinger celery-beat",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "QUANTDINGER_BACKEND_IMAGE": {
+          "defaultValue": "${{Backend.QUANTDINGER_BACKEND_IMAGE}}",
+          "description": "Same as QUANTDINGER_BACKEND_IMAGE on Backend (change it there).",
+          "required": false
+        },
+        "TZ": {
+          "defaultValue": "${{Backend.TZ}}",
+          "description": "Same as TZ on Backend (change it there).",
+          "required": false
+        },
+        "LOG_FORMAT": {
+          "defaultValue": "${{Backend.LOG_FORMAT}}",
+          "description": "Same as LOG_FORMAT on Backend (change it there).",
+          "required": false
+        },
+        "LOG_LEVEL": {
+          "defaultValue": "${{Backend.LOG_LEVEL}}",
+          "description": "Same as LOG_LEVEL on Backend (change it there).",
+          "required": false
+        },
+        "SECRET_KEY": {
+          "defaultValue": "${{Backend.SECRET_KEY}}",
+          "description": "Same as SECRET_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CREDENTIAL_ENCRYPTION_KEY": {
+          "defaultValue": "${{Backend.CREDENTIAL_ENCRYPTION_KEY}}",
+          "description": "Same as CREDENTIAL_ENCRYPTION_KEY on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_USER": {
+          "defaultValue": "${{Backend.ADMIN_USER}}",
+          "description": "Same as ADMIN_USER on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_PASSWORD": {
+          "defaultValue": "${{Backend.ADMIN_PASSWORD}}",
+          "description": "Same as ADMIN_PASSWORD on Backend (change it there).",
+          "required": false
+        },
+        "ADMIN_EMAIL": {
+          "defaultValue": "${{Backend.ADMIN_EMAIL}}",
+          "description": "Same as ADMIN_EMAIL on Backend (change it there).",
+          "required": false
+        },
+        "ENABLE_REGISTRATION": {
+          "defaultValue": "${{Backend.ENABLE_REGISTRATION}}",
+          "description": "Same as ENABLE_REGISTRATION on Backend (change it there).",
+          "required": false
+        },
+        "LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.LIVE_TRADING_ENABLED}}",
+          "description": "Same as LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_LIVE_TRADING_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_LIVE_TRADING_ENABLED}}",
+          "description": "Same as AGENT_LIVE_TRADING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BROKER_ACCOUNTS_ENABLED": {
+          "defaultValue": "${{Backend.BROKER_ACCOUNTS_ENABLED}}",
+          "description": "Same as BROKER_ACCOUNTS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "AGENT_GATEWAY_ENABLED": {
+          "defaultValue": "${{Backend.AGENT_GATEWAY_ENABLED}}",
+          "description": "Same as AGENT_GATEWAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "BILLING_ENABLED": {
+          "defaultValue": "${{Backend.BILLING_ENABLED}}",
+          "description": "Same as BILLING_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "MARKETPLACE_ENABLED": {
+          "defaultValue": "${{Backend.MARKETPLACE_ENABLED}}",
+          "description": "Same as MARKETPLACE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDT_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDT_PAY_ENABLED}}",
+          "description": "Same as USDT_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "USDC_PAY_ENABLED": {
+          "defaultValue": "${{Backend.USDC_PAY_ENABLED}}",
+          "description": "Same as USDC_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "STRIPE_PAY_ENABLED": {
+          "defaultValue": "${{Backend.STRIPE_PAY_ENABLED}}",
+          "description": "Same as STRIPE_PAY_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "REFERRAL_PROGRAM_ENABLED": {
+          "defaultValue": "${{Backend.REFERRAL_PROGRAM_ENABLED}}",
+          "description": "Same as REFERRAL_PROGRAM_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "QUANTDINGER_DEPLOYMENT_MODE": {
+          "defaultValue": "${{Backend.QUANTDINGER_DEPLOYMENT_MODE}}",
+          "description": "Same as QUANTDINGER_DEPLOYMENT_MODE on Backend (change it there).",
+          "required": false
+        },
+        "OPENAPI_ENABLED": {
+          "defaultValue": "${{Backend.OPENAPI_ENABLED}}",
+          "description": "Same as OPENAPI_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "PYTHON_API_DEBUG": {
+          "defaultValue": "${{Backend.PYTHON_API_DEBUG}}",
+          "description": "Same as PYTHON_API_DEBUG on Backend (change it there).",
+          "required": false
+        },
+        "SKIP_AUTO_MIGRATE": {
+          "defaultValue": "${{Backend.SKIP_AUTO_MIGRATE}}",
+          "description": "Same as SKIP_AUTO_MIGRATE on Backend (change it there).",
+          "required": false
+        },
+        "DB_TYPE": {
+          "defaultValue": "${{Backend.DB_TYPE}}",
+          "description": "Same as DB_TYPE on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_DB": {
+          "defaultValue": "${{Backend.REDIS_DB}}",
+          "description": "Same as REDIS_DB on Backend (change it there).",
+          "required": false
+        },
+        "REDIS_CACHE_NAMESPACE": {
+          "defaultValue": "${{Backend.REDIS_CACHE_NAMESPACE}}",
+          "description": "Same as REDIS_CACHE_NAMESPACE on Backend (change it there).",
+          "required": false
+        },
+        "CACHE_ENABLED": {
+          "defaultValue": "${{Backend.CACHE_ENABLED}}",
+          "description": "Same as CACHE_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_TASKS_ENABLED": {
+          "defaultValue": "${{Backend.CELERY_TASKS_ENABLED}}",
+          "description": "Same as CELERY_TASKS_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_BROKER_DB": {
+          "defaultValue": "${{Backend.CELERY_BROKER_DB}}",
+          "description": "Same as CELERY_BROKER_DB on Backend (change it there).",
+          "required": false
+        },
+        "CELERY_RESULT_DB": {
+          "defaultValue": "${{Backend.CELERY_RESULT_DB}}",
+          "description": "Same as CELERY_RESULT_DB on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_EVENT_PUBLISH_ENABLED": {
+          "defaultValue": "${{Backend.KAFKA_EVENT_PUBLISH_ENABLED}}",
+          "description": "Same as KAFKA_EVENT_PUBLISH_ENABLED on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_REPLICATION_FACTOR": {
+          "defaultValue": "${{Backend.KAFKA_REPLICATION_FACTOR}}",
+          "description": "Same as KAFKA_REPLICATION_FACTOR on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_MARKET_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_MARKET_PARTITIONS}}",
+          "description": "Same as KAFKA_MARKET_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_STRATEGY_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_STRATEGY_PARTITIONS}}",
+          "description": "Same as KAFKA_STRATEGY_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_ORDER_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_ORDER_PARTITIONS}}",
+          "description": "Same as KAFKA_ORDER_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "KAFKA_DLQ_PARTITIONS": {
+          "defaultValue": "${{Backend.KAFKA_DLQ_PARTITIONS}}",
+          "description": "Same as KAFKA_DLQ_PARTITIONS on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_AUTO_SYNC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_AUTO_SYNC}}",
+          "description": "Same as MARKET_CATALOG_AUTO_SYNC on Backend (change it there).",
+          "required": false
+        },
+        "MARKET_CATALOG_SYNC_INTERVAL_SEC": {
+          "defaultValue": "${{Backend.MARKET_CATALOG_SYNC_INTERVAL_SEC}}",
+          "description": "Same as MARKET_CATALOG_SYNC_INTERVAL_SEC on Backend (change it there).",
+          "required": false
+        },
+        "LLM_PROVIDER": {
+          "defaultValue": "${{Backend.LLM_PROVIDER}}",
+          "description": "Same as LLM_PROVIDER on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_API_KEY": {
+          "defaultValue": "${{Backend.OPENROUTER_API_KEY}}",
+          "description": "Same as OPENROUTER_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENROUTER_MODEL": {
+          "defaultValue": "${{Backend.OPENROUTER_MODEL}}",
+          "description": "Same as OPENROUTER_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_API_KEY": {
+          "defaultValue": "${{Backend.OPENAI_API_KEY}}",
+          "description": "Same as OPENAI_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_MODEL": {
+          "defaultValue": "${{Backend.OPENAI_MODEL}}",
+          "description": "Same as OPENAI_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "OPENAI_BASE_URL": {
+          "defaultValue": "${{Backend.OPENAI_BASE_URL}}",
+          "description": "Same as OPENAI_BASE_URL on Backend (change it there).",
+          "required": false
+        },
+        "DEEPSEEK_API_KEY": {
+          "defaultValue": "${{Backend.DEEPSEEK_API_KEY}}",
+          "description": "Same as DEEPSEEK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GOOGLE_API_KEY": {
+          "defaultValue": "${{Backend.GOOGLE_API_KEY}}",
+          "description": "Same as GOOGLE_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "GROK_API_KEY": {
+          "defaultValue": "${{Backend.GROK_API_KEY}}",
+          "description": "Same as GROK_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "MINIMAX_API_KEY": {
+          "defaultValue": "${{Backend.MINIMAX_API_KEY}}",
+          "description": "Same as MINIMAX_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_URL": {
+          "defaultValue": "${{Backend.CUSTOM_API_URL}}",
+          "description": "Same as CUSTOM_API_URL on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_API_KEY": {
+          "defaultValue": "${{Backend.CUSTOM_API_KEY}}",
+          "description": "Same as CUSTOM_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "CUSTOM_MODEL": {
+          "defaultValue": "${{Backend.CUSTOM_MODEL}}",
+          "description": "Same as CUSTOM_MODEL on Backend (change it there).",
+          "required": false
+        },
+        "TAVILY_API_KEYS": {
+          "defaultValue": "${{Backend.TAVILY_API_KEYS}}",
+          "description": "Same as TAVILY_API_KEYS on Backend (change it there).",
+          "required": false
+        },
+        "FINNHUB_API_KEY": {
+          "defaultValue": "${{Backend.FINNHUB_API_KEY}}",
+          "description": "Same as FINNHUB_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "TWELVE_DATA_API_KEY": {
+          "defaultValue": "${{Backend.TWELVE_DATA_API_KEY}}",
+          "description": "Same as TWELVE_DATA_API_KEY on Backend (change it there).",
+          "required": false
+        },
+        "QD_SCHEMA_WAIT_SECONDS": {
+          "defaultValue": "${{Backend.QD_SCHEMA_WAIT_SECONDS}}",
+          "description": "Same as QD_SCHEMA_WAIT_SECONDS on Backend (change it there).",
+          "required": false
+        },
+        "QD_THREAD_CAP": {
+          "defaultValue": "${{Backend.QD_THREAD_CAP}}",
+          "description": "Same as QD_THREAD_CAP on Backend (change it there).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "${{Postgres.DATABASE_URL}}",
+          "description": "Postgres connection string (private network).",
+          "required": false
+        },
+        "REDIS_HOST": {
+          "defaultValue": "${{Redis.REDISHOST}}",
+          "description": "Cache Redis host (private network).",
+          "required": false
+        },
+        "REDIS_PORT": {
+          "defaultValue": "${{Redis.REDISPORT}}",
+          "description": "Cache Redis port.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{Redis.REDIS_PASSWORD}}",
+          "description": "Cache Redis password.",
+          "required": false
+        },
+        "CELERY_REDIS_HOST": {
+          "defaultValue": "${{Redis Jobs.REDISHOST}}",
+          "description": "Durable job Redis host (Celery broker and results).",
+          "required": false
+        },
+        "CELERY_REDIS_PORT": {
+          "defaultValue": "${{Redis Jobs.REDISPORT}}",
+          "description": "Durable job Redis port.",
+          "required": false
+        },
+        "CELERY_REDIS_PASSWORD": {
+          "defaultValue": "${{Redis Jobs.REDIS_PASSWORD}}",
+          "description": "Durable job Redis password.",
+          "required": false
+        },
+        "KAFKA_BOOTSTRAP_SERVERS": {
+          "defaultValue": "${{Kafka.RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Kafka broker (private network).",
+          "required": false
+        },
+        "FRONTEND_URL": {
+          "defaultValue": "https://${{Web.RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public web origin (CORS, OAuth redirects). Change it when you add a custom domain to Web.",
+          "required": false
+        },
+        "QD_PROCESS_ROLE": {
+          "defaultValue": "celery",
+          "description": "Process role (the start command enforces it).",
+          "required": false
+        },
+        "STRATEGY_COMMANDS_ENABLED": {
+          "defaultValue": "false",
+          "description": "Accepts strategy start/stop commands (API process only).",
+          "required": false
+        },
+        "DB_POOL_MIN": {
+          "defaultValue": "1",
+          "description": "Connections this process keeps open.",
+          "required": false
+        },
+        "DB_POOL_MAX": {
+          "defaultValue": "2",
+          "description": "Connection pool limit of this process (keep the sum of all pools below Postgres max_connections=200).",
+          "required": false
+        },
+        "DB_APPLICATION_NAME": {
+          "defaultValue": "quantdinger-celery-beat",
+          "description": "Name shown in pg_stat_activity.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "45",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy (graceful worker shutdown, as upstream's stop_grace_period).",
+          "required": false
+        }
+      }
+    },
+    "MCP Server": {
+      "icon": "https://cdn.jsdelivr.net/npm/lucide-static@1.59.0/icons/plug.svg",
+      "source": {
+        "repo": "baranberkay96/quantdinger-railway",
+        "rootDirectory": "/services/mcp"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": "/.well-known/oauth-protected-resource",
+      "healthcheckTimeout": 300,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": true,
+      "targetPort": 7800,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "PORT": {
+          "defaultValue": "7800",
+          "description": "Port Railway health-checks (MCP endpoint: /mcp).",
+          "required": false
+        },
+        "QUANTDINGER_AGENT_TOKEN": {
+          "defaultValue": "",
+          "description": "Agent Token (qd_agent_...) the MCP server acts with. Empty until you issue one: QuantDinger -> Profile -> My Agent Token (paper-only recommended). Until then the endpoint answers 503.",
+          "required": false
+        },
+        "QUANTDINGER_MCP_AUTH_TOKEN": {
+          "defaultValue": "${{secret(48, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789\")}}",
+          "description": "Bearer token MCP clients must send (Authorization: Bearer ...), generated at deploy. Keep it secret.",
+          "required": false
+        },
+        "QUANTDINGER_BASE_URL": {
+          "defaultValue": "http://${{Backend.RAILWAY_PRIVATE_DOMAIN}}:5000",
+          "description": "QuantDinger API on the private network.",
+          "required": false
+        },
+        "QUANTDINGER_MCP_PUBLIC_URL": {
+          "defaultValue": "https://${{RAILWAY_PUBLIC_DOMAIN}}",
+          "description": "Public https origin of this service (change it when you add a custom domain).",
+          "required": false
+        },
+        "QUANTDINGER_MCP_TRANSPORT": {
+          "defaultValue": "streamable-http",
+          "description": "MCP transport (streamable-http on /mcp, or sse).",
+          "required": false
+        },
+        "QUANTDINGER_MCP_HOST": {
+          "defaultValue": "0.0.0.0",
+          "description": "Bind address (IPv4; Railway's proxy and healthcheck connect over IPv4).",
+          "required": false
+        },
+        "QUANTDINGER_MCP_PORT": {
+          "defaultValue": "7800",
+          "description": "Port of the MCP server.",
+          "required": false
+        },
+        "QUANTDINGER_TIMEOUT_S": {
+          "defaultValue": "60",
+          "description": "Timeout for calls to the QuantDinger API, in seconds.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "10",
+          "description": "Seconds between SIGTERM and SIGKILL on redeploy.",
+          "required": false
+        }
+      }
+    },
+    "Postgres": {
+      "icon": "https://devicons.railway.app/i/postgresql.svg",
+      "source": {
+        "image": "ghcr.io/railwayapp-templates/postgres-ssl:18"
+      },
+      "startCommand": "/usr/bin/tini -g -- /usr/local/bin/wrapper.sh postgres -p 5432 -c listen_addresses=* -c max_connections=200 -c shared_buffers=256MB",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": {
+        "mountPath": "/var/lib/postgresql/data"
+      },
+      "variables": {
+        "PGDATA": {
+          "defaultValue": "/var/lib/postgresql/data/pgdata",
+          "description": "Data directory inside the volume (Railway base layout).",
+          "required": false
+        },
+        "PGHOST": {
+          "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Private hostname of this database.",
+          "required": false
+        },
+        "PGPORT": {
+          "defaultValue": "5432",
+          "description": "Postgres port.",
+          "required": false
+        },
+        "PGUSER": {
+          "defaultValue": "${{POSTGRES_USER}}",
+          "description": "User for the Data panel and the other services.",
+          "required": false
+        },
+        "PGPASSWORD": {
+          "defaultValue": "${{POSTGRES_PASSWORD}}",
+          "description": "Password for the Data panel and the other services.",
+          "required": false
+        },
+        "PGDATABASE": {
+          "defaultValue": "${{POSTGRES_DB}}",
+          "description": "Database for the Data panel and the other services.",
+          "required": false
+        },
+        "POSTGRES_USER": {
+          "defaultValue": "postgres",
+          "description": "Superuser created on first boot.",
+          "required": false
+        },
+        "POSTGRES_PASSWORD": {
+          "defaultValue": "${{ secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\") }}",
+          "description": "Superuser password, generated at deploy (letters only, safe in URLs).",
+          "required": false
+        },
+        "POSTGRES_DB": {
+          "defaultValue": "railway",
+          "description": "Database created on first boot (QuantDinger's tables live here).",
+          "required": false
+        },
+        "DATABASE_URL": {
+          "defaultValue": "postgresql://${{PGUSER}}:${{POSTGRES_PASSWORD}}@${{RAILWAY_PRIVATE_DOMAIN}}:5432/${{PGDATABASE}}",
+          "description": "Private connection string (Railway convention).",
+          "required": false
+        },
+        "SSL_CERT_DAYS": {
+          "defaultValue": "820",
+          "description": "Validity of the self-signed TLS certificate.",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "60",
+          "description": "Time Postgres gets to shut down cleanly on redeploy.",
+          "required": false
+        }
+      }
+    },
+    "Redis": {
+      "icon": "https://cdn.sanity.io/images/sy1jschh/production/0ce0bfdcfbdbf69662b1116671f97c2dd788b655-157x157.svg",
+      "source": {
+        "image": "redis:8.2"
+      },
+      "startCommand": "/bin/sh -c \"exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --save '' --appendonly no --maxmemory $REDIS_MAXMEMORY --maxmemory-policy allkeys-lru\"",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": null,
+      "variables": {
+        "REDISHOST": {
+          "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Private hostname of this Redis.",
+          "required": false
+        },
+        "REDISPORT": {
+          "defaultValue": "6379",
+          "description": "Port Redis listens on.",
+          "required": false
+        },
+        "REDISUSER": {
+          "defaultValue": "default",
+          "description": "Redis user.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{ secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\") }}",
+          "description": "Password, generated at deploy.",
+          "required": false
+        },
+        "REDISPASSWORD": {
+          "defaultValue": "${{REDIS_PASSWORD}}",
+          "description": "Alias of REDIS_PASSWORD.",
+          "required": false
+        },
+        "REDIS_URL": {
+          "defaultValue": "redis://${{ REDISUSER }}:${{ REDIS_PASSWORD }}@${{ REDISHOST }}:${{ REDISPORT }}",
+          "description": "Private connection string.",
+          "required": false
+        },
+        "REDIS_MAXMEMORY": {
+          "defaultValue": "128mb",
+          "description": "Memory cap of the cache; least recently used keys are evicted (upstream: 128mb, allkeys-lru, no persistence).",
+          "required": false
+        }
+      }
+    },
+    "Redis Jobs": {
+      "icon": "https://cdn.sanity.io/images/sy1jschh/production/0ce0bfdcfbdbf69662b1116671f97c2dd788b655-157x157.svg",
+      "source": {
+        "image": "redis:8.2"
+      },
+      "startCommand": "/bin/sh -c \"rm -rf $RAILWAY_VOLUME_MOUNT_PATH/lost+found/ && exec docker-entrypoint.sh redis-server --requirepass $REDIS_PASSWORD --dir $RAILWAY_VOLUME_MOUNT_PATH --appendonly yes --appendfsync everysec --save 60 1000 --maxmemory $REDIS_MAXMEMORY --maxmemory-policy noeviction\"",
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ON_FAILURE",
+      "restartPolicyMaxRetries": 10,
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": {
+        "mountPath": "/data"
+      },
+      "variables": {
+        "REDISHOST": {
+          "defaultValue": "${{RAILWAY_PRIVATE_DOMAIN}}",
+          "description": "Private hostname of this Redis.",
+          "required": false
+        },
+        "REDISPORT": {
+          "defaultValue": "6379",
+          "description": "Port Redis listens on.",
+          "required": false
+        },
+        "REDISUSER": {
+          "defaultValue": "default",
+          "description": "Redis user.",
+          "required": false
+        },
+        "REDIS_PASSWORD": {
+          "defaultValue": "${{ secret(32, \"abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ\") }}",
+          "description": "Password, generated at deploy.",
+          "required": false
+        },
+        "REDISPASSWORD": {
+          "defaultValue": "${{REDIS_PASSWORD}}",
+          "description": "Alias of REDIS_PASSWORD.",
+          "required": false
+        },
+        "REDIS_URL": {
+          "defaultValue": "redis://${{ REDISUSER }}:${{ REDIS_PASSWORD }}@${{ REDISHOST }}:${{ REDISPORT }}",
+          "description": "Private connection string.",
+          "required": false
+        },
+        "REDIS_MAXMEMORY": {
+          "defaultValue": "512mb",
+          "description": "Memory cap of the job queue. noeviction: when full, new jobs are refused instead of silently dropping queued ones (upstream: 512mb, AOF everysec).",
+          "required": false
+        }
+      }
+    },
+    "Kafka": {
+      "icon": "https://cdn.jsdelivr.net/npm/simple-icons@15.10.0/icons/apachekafka.svg",
+      "source": {
+        "image": "apache/kafka:4.3.1@sha256:77e3df9054047a88b520d0cc46e16696d3b22022e1d580aeccd2632df6532837"
+      },
+      "startCommand": null,
+      "preDeployCommand": null,
+      "healthcheckPath": null,
+      "healthcheckTimeout": null,
+      "restartPolicyType": "ALWAYS",
+      "numReplicas": 1,
+      "cronSchedule": null,
+      "publicDomain": false,
+      "targetPort": null,
+      "tcpProxy": null,
+      "volume": {
+        "mountPath": "/var/lib/kafka/data"
+      },
+      "variables": {
+        "KAFKA_NODE_ID": {
+          "defaultValue": "1",
+          "description": "Node id (single combined broker/controller).",
+          "required": false
+        },
+        "KAFKA_PROCESS_ROLES": {
+          "defaultValue": "broker,controller",
+          "description": "KRaft combined mode (no ZooKeeper).",
+          "required": false
+        },
+        "KAFKA_LISTENERS": {
+          "defaultValue": "PLAINTEXT://[::]:9092,CONTROLLER://[::]:9093",
+          "description": "Listeners on all IPv6 and IPv4 addresses (librdkafka clients try IPv6 first).",
+          "required": false
+        },
+        "KAFKA_ADVERTISED_LISTENERS": {
+          "defaultValue": "PLAINTEXT://${{RAILWAY_PRIVATE_DOMAIN}}:9092",
+          "description": "Address clients are told to use (private network only).",
+          "required": false
+        },
+        "KAFKA_LISTENER_SECURITY_PROTOCOL_MAP": {
+          "defaultValue": "CONTROLLER:PLAINTEXT,PLAINTEXT:PLAINTEXT",
+          "description": "Listener protocols (private network, no TLS).",
+          "required": false
+        },
+        "KAFKA_CONTROLLER_LISTENER_NAMES": {
+          "defaultValue": "CONTROLLER",
+          "description": "Controller listener.",
+          "required": false
+        },
+        "KAFKA_INTER_BROKER_LISTENER_NAME": {
+          "defaultValue": "PLAINTEXT",
+          "description": "Inter-broker listener.",
+          "required": false
+        },
+        "KAFKA_CONTROLLER_QUORUM_VOTERS": {
+          "defaultValue": "1@localhost:9093",
+          "description": "Controller quorum. localhost on purpose: a service cannot resolve its own private name while it boots.",
+          "required": false
+        },
+        "KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR": {
+          "defaultValue": "1",
+          "description": "Single node.",
+          "required": false
+        },
+        "KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR": {
+          "defaultValue": "1",
+          "description": "Single node.",
+          "required": false
+        },
+        "KAFKA_TRANSACTION_STATE_LOG_MIN_ISR": {
+          "defaultValue": "1",
+          "description": "Single node.",
+          "required": false
+        },
+        "KAFKA_SHARE_COORDINATOR_STATE_TOPIC_REPLICATION_FACTOR": {
+          "defaultValue": "1",
+          "description": "Single node.",
+          "required": false
+        },
+        "KAFKA_SHARE_COORDINATOR_STATE_TOPIC_MIN_ISR": {
+          "defaultValue": "1",
+          "description": "Single node.",
+          "required": false
+        },
+        "KAFKA_TRANSACTION_STATE_LOG_NUM_PARTITIONS": {
+          "defaultValue": "12",
+          "description": "Upstream compose value.",
+          "required": false
+        },
+        "KAFKA_OFFSETS_TOPIC_NUM_PARTITIONS": {
+          "defaultValue": "12",
+          "description": "Upstream compose value.",
+          "required": false
+        },
+        "KAFKA_NUM_PARTITIONS": {
+          "defaultValue": "6",
+          "description": "Partitions of auto-created topics (upstream compose value).",
+          "required": false
+        },
+        "KAFKA_GROUP_INITIAL_REBALANCE_DELAY_MS": {
+          "defaultValue": "0",
+          "description": "Start consumer groups immediately.",
+          "required": false
+        },
+        "KAFKA_LOG_DIRS": {
+          "defaultValue": "/var/lib/kafka/data/kraft-combined-logs",
+          "description": "Data directory inside the volume (a subdirectory, so the volume's lost+found is not taken for a partition).",
+          "required": false
+        },
+        "KAFKA_HEAP_OPTS": {
+          "defaultValue": "-Xms256m -Xmx768m",
+          "description": "JVM heap (upstream compose value).",
+          "required": false
+        },
+        "CLUSTER_ID": {
+          "defaultValue": "MkU3OEVBNTcwNTJENDM2Qk",
+          "description": "KRaft cluster id used to format the volume on first boot (upstream compose value; not a secret). Do not change it after the first deploy.",
+          "required": false
+        },
+        "RAILWAY_RUN_UID": {
+          "defaultValue": "0",
+          "description": "Run as root so Kafka can write to the volume (mounted root-owned).",
+          "required": false
+        },
+        "RAILWAY_DEPLOYMENT_DRAINING_SECONDS": {
+          "defaultValue": "60",
+          "description": "Time Kafka gets to shut down cleanly on redeploy.",
+          "required": false
+        }
+      }
+    }
+  }
+}
