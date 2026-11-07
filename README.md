@@ -1,6 +1,6 @@
 # Deploy and Host QuantDinger with Railway
 
-[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/quantdinger-v5-ai-trading-research?referralCode=20H68q)
+[![Deploy on Railway](https://railway.com/button.svg)](https://railway.com/deploy/quantdinger-v5-ai-trading-research-and-b?referralCode=20H68q)
 
 QuantDinger is a self-hosted AI trading research platform: AI market analysis, Python strategies, factor research, backtesting, paper and live trading, monitoring and an MCP server for AI agents. This community template runs release v5.8.4 as upstream's full production stack, with paper trading only by default.
 
